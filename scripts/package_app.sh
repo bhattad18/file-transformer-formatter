@@ -8,6 +8,11 @@ APP_BUNDLE_ID="com.rohitbhattad.filetransformerformatter"
 BUILD_DIR="$ROOT_DIR/.build/release"
 APP_DIR="$ROOT_DIR/dist/${APP_DISPLAY_NAME}.app"
 MACOS_DIR="$APP_DIR/Contents/MacOS"
+RESOURCES_DIR="$APP_DIR/Contents/Resources"
+ICON_PATH="$ROOT_DIR/Assets/AppIcon.icns"
+
+echo "Generating app icon..."
+swift "$ROOT_DIR/scripts/generate_app_icon.swift"
 
 echo "Building release binary..."
 swift build -c release --package-path "$ROOT_DIR"
@@ -15,8 +20,10 @@ swift build -c release --package-path "$ROOT_DIR"
 echo "Creating app bundle at $APP_DIR"
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
+mkdir -p "$RESOURCES_DIR"
 
 cp "$BUILD_DIR/$APP_EXECUTABLE" "$MACOS_DIR/$APP_EXECUTABLE"
+cp "$ICON_PATH" "$RESOURCES_DIR/AppIcon.icns"
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -37,6 +44,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <string>$APP_EXECUTABLE</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>NSHighResolutionCapable</key>
