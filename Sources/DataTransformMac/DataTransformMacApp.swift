@@ -6,6 +6,5 @@ struct FileTransformerAndFormatterApp: App {
         WindowGroup {
             ContentView()
         }
-        .windowStyle(.hiddenTitleBar)
     }
 }

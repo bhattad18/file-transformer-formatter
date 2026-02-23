@@ -61,33 +61,20 @@ enum UpdateService {
     }
 
     private static func normalizeVersion(_ tag: String) -> String {
-        if tag.lowercased().hasPrefix("v") {
-            return String(tag.dropFirst())
+        var value = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.lowercased().hasPrefix("v") {
+            value = String(value.dropFirst())
         }
-        return tag
+        while value.first == "." {
+            value.removeFirst()
+        }
+        return value
     }
 
     private static func isVersion(_ lhs: String, newerThan rhs: String) -> Bool {
-        let left = parseVersion(lhs)
-        let right = parseVersion(rhs)
-        let count = max(left.count, right.count)
-
-        for index in 0..<count {
-            let l = index < left.count ? left[index] : 0
-            let r = index < right.count ? right[index] : 0
-            if l != r {
-                return l > r
-            }
-        }
-        return false
-    }
-
-    private static func parseVersion(_ value: String) -> [Int] {
-        value
-            .split(separator: ".")
-            .map { segment in
-                Int(segment.filter(\.isNumber)) ?? 0
-            }
+        let left = normalizeVersion(lhs)
+        let right = normalizeVersion(rhs)
+        return left.compare(right, options: .numeric) == .orderedDescending
     }
 }
 

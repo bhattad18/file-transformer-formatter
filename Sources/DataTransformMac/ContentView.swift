@@ -9,6 +9,7 @@ struct ContentView: View {
     private let brandDarkEnd = Color(red: 0.06, green: 0.20, blue: 0.26)
     private let brandAccent = Color(red: 0.10, green: 0.55, blue: 0.82)
     private let updateCheckTimer = Timer.publish(every: 60 * 60 * 4, on: .main, in: .common).autoconnect()
+
     @Environment(\.colorScheme) private var activeColorScheme
     @AppStorage("app_appearance_mode") private var appearanceModeRaw = AppearanceMode.system.rawValue
 
@@ -32,106 +33,35 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 16) {
-                Text(AppInfo.appName)
-                    .font(.title2)
-                    .bold()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Offline file conversion and formatting. Your files stay local and no online tools are needed.")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(primaryTextColor)
 
-                Text("Offline file conversion and formatting. Your data stays on your machine, and no online tools are required.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    appearanceCard
+                    updatesCard
 
-                creatorCard
-                appearanceCard
-                updatesCard
-
-                Picker("Action", selection: $selectedAction) {
-                    ForEach(TransformAction.allCases) { action in
-                        Text(action.label).tag(action)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Text(selectedAction.description)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                dropArea
-
-                HStack(spacing: 12) {
-                    Button("Choose File") {
-                        pickInputFile()
-                    }
-
-                    Button("Run and Save") {
-                        runSelectedAction()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .tint(brandAccent)
-
-                    if lastOutputURL != nil {
-                        Button {
-                            openOutputFolder()
-                        } label: {
-                            Label("Show Output Folder", systemImage: "folder")
+                    Picker("Action", selection: $selectedAction) {
+                        ForEach(TransformAction.allCases) { action in
+                            Text(action.label).tag(action)
                         }
                     }
+                    .pickerStyle(.segmented)
 
-                    Button("Clear Status") {
-                        statusMessage = "Status cleared."
-                        isError = false
-                    }
+                    Text(selectedAction.description)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
 
-                    Button {
-                        openFeedbackEmail()
-                    } label: {
-                        Label("Share Feedback / Bug", systemImage: "envelope")
-                    }
-
-                    Button {
-                        openFeedbackInBrowser(provider: .gmail)
-                    } label: {
-                        Label("Gmail", systemImage: "globe")
-                    }
-
-                    Button {
-                        openFeedbackInBrowser(provider: .outlookWeb)
-                    } label: {
-                        Label("Outlook Web", systemImage: "globe")
-                    }
+                    dropArea
+                    actionButtons
+                    statsSection
+                    statusSection
+                    developerInfoCard
                 }
-
-                statsSection
-
-                Divider()
-
-                Text(isError ? "Error" : "Status")
-                    .font(.headline)
-
-                ScrollView {
-                    Text(statusMessage)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                }
-                .frame(minHeight: 120)
-                .padding(10)
-                .background(cardBackgroundColor)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(20)
             }
-            .padding(20)
-            .frame(minWidth: 820, minHeight: 580)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 8) {
-                        Image(nsImage: NSApp.applicationIconImage)
-                            .resizable()
-                            .frame(width: 16, height: 16)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                        Text(AppInfo.appName)
-                            .font(.headline)
-                    }
-                }
-            }
+            .frame(minWidth: 640, minHeight: 520)
             .task {
                 NotificationService.requestPermissionIfNeeded()
                 await checkForUpdates(manual: false)
@@ -143,22 +73,6 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(appearanceMode.colorScheme)
-    }
-
-    private var creatorCard: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Created by \(AppInfo.creatorName)")
-                    .font(.headline)
-                Text("Email: \(AppInfo.creatorEmail)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(12)
-        .background(cardBackgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var appearanceCard: some View {
@@ -233,6 +147,112 @@ struct ContentView: View {
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil, perform: handleDrop(providers:))
     }
 
+    private var actionButtons: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                chooseButton
+                runButton
+                outputButton
+                feedbackButtons
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    chooseButton
+                    runButton
+                    outputButton
+                }
+                feedbackButtons
+            }
+        }
+    }
+
+    private var chooseButton: some View {
+        workflowButton(
+            title: "Choose File",
+            icon: "doc.badge.plus",
+            highlighted: selectedInputURL == nil,
+            enabled: true
+        ) {
+            pickInputFile()
+        }
+    }
+
+    private var runButton: some View {
+        workflowButton(
+            title: "Run and Save",
+            icon: "play.fill",
+            highlighted: selectedInputURL != nil && lastOutputURL == nil,
+            enabled: true
+        ) {
+            runSelectedAction()
+        }
+        .keyboardShortcut(.defaultAction)
+    }
+
+    private var outputButton: some View {
+        workflowButton(
+            title: "Show Output Folder",
+            icon: "folder",
+            highlighted: lastOutputURL != nil,
+            enabled: lastOutputURL != nil
+        ) {
+            openOutputFolder()
+        }
+    }
+
+    private var feedbackButtons: some View {
+        HStack(spacing: 10) {
+            Button {
+                openFeedbackEmail()
+            } label: {
+                Label("Mail App", systemImage: "envelope")
+            }
+
+            Button {
+                openFeedbackInBrowser(provider: .gmail)
+            } label: {
+                Label("Gmail", systemImage: "globe")
+            }
+
+            Button {
+                openFeedbackInBrowser(provider: .outlookWeb)
+            } label: {
+                Label("Outlook Web", systemImage: "globe")
+            }
+
+            Button("Clear Status") {
+                statusMessage = "Status cleared."
+                isError = false
+            }
+        }
+    }
+
+    private func workflowButton(
+        title: String,
+        icon: String,
+        highlighted: Bool,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .fontWeight(highlighted ? .semibold : .regular)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(minHeight: 30)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(highlighted ? Color.white : primaryTextColor)
+        .background(highlighted ? brandAccent : cardBackgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(highlighted ? brandAccent : brandAccent.opacity(0.25), lineWidth: 1)
+        )
+        .disabled(!enabled)
+        .opacity(enabled ? 1.0 : 0.55)
+    }
+
     private var statsSection: some View {
         HStack(spacing: 12) {
             statCard(title: "CSV -> JSON", value: usageStats.count(for: .csvToJSON))
@@ -256,23 +276,63 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
+    private var statusSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(isError ? "Error" : "Status")
+                .font(.headline)
+
+            ScrollView {
+                Text(statusMessage)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .frame(minHeight: 120)
+            .padding(10)
+            .background(cardBackgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private var developerInfoCard: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Developer Information")
+                .font(.headline)
+            Text("Name: \(AppInfo.creatorName)")
+                .font(.subheadline)
+            Text("Email: \(AppInfo.creatorEmail)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(cardBackgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
     private var appearanceMode: AppearanceMode {
         AppearanceMode(rawValue: appearanceModeRaw) ?? .system
     }
 
+    private var effectiveColorScheme: ColorScheme {
+        appearanceMode.colorScheme ?? activeColorScheme
+    }
+
     private var backgroundColors: [Color] {
-        let isDark = activeColorScheme == .dark || appearanceMode == .dark
-        return isDark ? [brandDarkStart, brandDarkEnd] : [brandLightStart, brandLightEnd]
+        effectiveColorScheme == .dark ? [brandDarkStart, brandDarkEnd] : [brandLightStart, brandLightEnd]
     }
 
     private var cardBackgroundColor: Color {
-        (activeColorScheme == .dark || appearanceMode == .dark) ? .white.opacity(0.08) : .white.opacity(0.86)
+        effectiveColorScheme == .dark ? .white.opacity(0.08) : .white.opacity(0.86)
+    }
+
+    private var primaryTextColor: Color {
+        effectiveColorScheme == .dark ? .white : Color(red: 0.10, green: 0.16, blue: 0.24)
     }
 
     @MainActor
     private func pickInputFile() {
         do {
             selectedInputURL = try FilePanel.pickFile(allowedExtensions: selectedAction.allowedInputExtensions)
+            lastOutputURL = nil
             statusMessage = "Selected input:\n\(selectedInputURL?.path ?? "")"
             isError = false
         } catch {
@@ -301,6 +361,7 @@ struct ContentView: View {
             }
             DispatchQueue.main.async {
                 self.selectedInputURL = url
+                self.lastOutputURL = nil
                 self.statusMessage = "Selected input:\n\(url.path)"
                 self.isError = false
             }
@@ -342,6 +403,7 @@ struct ContentView: View {
         let picked = try FilePanel.pickFile(allowedExtensions: selectedAction.allowedInputExtensions)
         try validateInputFileExtension(picked)
         selectedInputURL = picked
+        lastOutputURL = nil
         return picked
     }
 
