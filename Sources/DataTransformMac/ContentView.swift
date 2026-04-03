@@ -22,6 +22,14 @@ struct ContentView: View {
     @State private var updateMessage = "Update status not checked yet."
     @State private var latestReleaseURL: URL?
     @State private var latestReleaseVersion: String?
+    @State private var inlineJSONInput = ""
+    @State private var inlineJSONOutput = ""
+    @State private var suggestedInlineFixInput: String?
+    @State private var inlineFormatterMessage = "Paste JSON and click Format."
+    @State private var inlineFormatterIsError = false
+    @State private var copyResultPulse = false
+    @State private var autoFixPulse = false
+    @State private var didConfigureWindow = false
     @StateObject private var usageStats = UsageStats()
 
     var body: some View {
@@ -33,35 +41,46 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16) {
+                GeometryReader { geometry in
+                    VStack(alignment: .leading, spacing: 16) {
                     Text("Offline file conversion and formatting. Your files stay local and no online tools are needed.")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(primaryTextColor)
 
-                    appearanceCard
-                    updatesCard
-
-                    Picker("Action", selection: $selectedAction) {
-                        ForEach(TransformAction.allCases) { action in
-                            Text(action.label).tag(action)
+                        HStack(alignment: .top, spacing: 12) {
+                            appearanceCard
+                            updatesCard
                         }
+
+                        Picker("Action", selection: $selectedAction) {
+                            ForEach(TransformAction.allCases) { action in
+                                Text(action.label).tag(action)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Text(selectedAction.description)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        if selectedAction == .formatJSONByLine {
+                            inlineFormatterCard(editorHeight: max(170, min(250, geometry.size.height * 0.25)))
+                        }
+
+                        dropArea
+                        actionButtons
+                        HStack(alignment: .top, spacing: 12) {
+                            statsSection
+                            developerInfoCard
+                        }
+                        statusSection
                     }
-                    .pickerStyle(.segmented)
-
-                    Text(selectedAction.description)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    dropArea
-                    actionButtons
-                    statsSection
-                    statusSection
-                    developerInfoCard
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(20)
                 }
-                .padding(20)
             }
-            .frame(minWidth: 640, minHeight: 520)
+            .frame(minWidth: 980, minHeight: 760)
             .task {
                 NotificationService.requestPermissionIfNeeded()
                 await checkForUpdates(manual: false)
@@ -70,6 +89,9 @@ struct ContentView: View {
                 Task {
                     await checkForUpdates(manual: false)
                 }
+            }
+            .onAppear {
+                configureWindowIfNeeded()
             }
         }
         .preferredColorScheme(appearanceMode.colorScheme)
@@ -87,6 +109,7 @@ struct ContentView: View {
             .pickerStyle(.segmented)
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardBackgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
@@ -123,6 +146,7 @@ struct ContentView: View {
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardBackgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
@@ -145,6 +169,167 @@ struct ContentView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil, perform: handleDrop(providers:))
+    }
+
+    private func inlineFormatterCard(editorHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Quick JSON Formatter")
+                        .font(.headline)
+                    Text("Paste a single JSON payload on the left and get formatted output instantly on the right.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                HStack(spacing: 8) {
+                    workflowButton(
+                        title: "Format",
+                        icon: "wand.and.stars",
+                        highlighted: !inlineJSONInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                        enabled: !inlineJSONInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ) {
+                        formatInlineJSON()
+                    }
+                    workflowButton(
+                        title: "Copy Result",
+                        icon: "doc.on.doc",
+                        highlighted: !inlineJSONOutput.isEmpty,
+                        enabled: !inlineJSONOutput.isEmpty,
+                        pulsing: copyResultPulse
+                    ) {
+                        copyInlineJSONResult()
+                    }
+                    workflowButton(
+                        title: "Clear",
+                        icon: "xmark",
+                        highlighted: false,
+                        enabled: true
+                    ) {
+                        clearInlineFormatter()
+                    }
+                }
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 12) {
+                    inlineEditor(
+                        title: "Paste JSON",
+                        text: $inlineJSONInput,
+                        placeholder: "{\n  \"policyId\": \"12345\"\n}",
+                        editorHeight: editorHeight
+                    )
+                    inlineEditor(
+                        title: "Formatted Output",
+                        text: $inlineJSONOutput,
+                        placeholder: "Formatted JSON will appear here.",
+                        isOutput: true,
+                        editorHeight: editorHeight
+                    )
+                }
+                VStack(alignment: .leading, spacing: 12) {
+                    inlineEditor(
+                        title: "Paste JSON",
+                        text: $inlineJSONInput,
+                        placeholder: "{\n  \"policyId\": \"12345\"\n}",
+                        editorHeight: editorHeight
+                    )
+                    inlineEditor(
+                        title: "Formatted Output",
+                        text: $inlineJSONOutput,
+                        placeholder: "Formatted JSON will appear here.",
+                        isOutput: true,
+                        editorHeight: editorHeight
+                    )
+                }
+            }
+
+            if let suggestedInlineFixInput {
+                HStack(spacing: 10) {
+                    Text("The pasted JSON looks invalid. I can try to auto-fix common syntax issues for you.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    workflowButton(
+                        title: "Auto-Fix and Format",
+                        icon: "wrench.and.screwdriver",
+                        highlighted: true,
+                        enabled: true,
+                        pulsing: autoFixPulse,
+                        accentColor: Color(red: 0.95, green: 0.50, blue: 0.14)
+                    ) {
+                        applyInlineFixAndFormat(suggestedInput: suggestedInlineFixInput)
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: inlineFormatterIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(inlineFormatterIsError ? Color.orange : brandAccent)
+                Text(inlineFormatterMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(inlineFormatterIsError ? Color.orange : .secondary)
+            }
+        }
+        .padding(14)
+        .background(cardBackgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func inlineEditor(title: String, text: Binding<String>, placeholder: String, isOutput: Bool = false, editorHeight: CGFloat = 220) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                if isOutput && !text.wrappedValue.isEmpty {
+                    Text("Click to copy")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            ZStack(alignment: .topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text(placeholder)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 12)
+                }
+
+                if isOutput {
+                    ScrollView {
+                        Text(text.wrappedValue)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 12)
+                    }
+                } else {
+                    TextEditor(text: text)
+                        .font(.system(.body, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(6)
+                        .background(Color.clear)
+                }
+            }
+            .frame(minHeight: editorHeight)
+            .background(effectiveColorScheme == .dark ? Color.black.opacity(0.18) : Color.white.opacity(0.92))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(editorBorderColor(isOutput: isOutput), lineWidth: copyResultPulse && isOutput ? 2 : 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .onTapGesture {
+                if isOutput {
+                    copyInlineJSONResult()
+                }
+            }
+            .animation(.easeInOut(duration: 0.35), value: copyResultPulse)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var actionButtons: some View {
@@ -232,25 +417,30 @@ struct ContentView: View {
         icon: String,
         highlighted: Bool,
         enabled: Bool,
+        pulsing: Bool = false,
+        accentColor: Color? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
                 .fontWeight(highlighted ? .semibold : .regular)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .frame(minHeight: 30)
+                .foregroundStyle((highlighted || pulsing) ? Color.white : primaryTextColor)
+                .frame(minWidth: 120, minHeight: 38)
+                .padding(.horizontal, 12)
+                .background(buttonBackgroundColor(highlighted: highlighted, pulsing: pulsing, accentColor: accentColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(buttonBorderColor(highlighted: highlighted, pulsing: pulsing, accentColor: accentColor), lineWidth: pulsing ? 2 : 1)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(highlighted ? Color.white : primaryTextColor)
-        .background(highlighted ? brandAccent : cardBackgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(highlighted ? brandAccent : brandAccent.opacity(0.25), lineWidth: 1)
-        )
+        .scaleEffect(pulsing ? 1.06 : 1.0)
+        .shadow(color: pulsing ? brandAccent.opacity(0.45) : .clear, radius: 12)
         .disabled(!enabled)
         .opacity(enabled ? 1.0 : 0.55)
+        .animation(.easeInOut(duration: 0.22), value: pulsing)
     }
 
     private var statsSection: some View {
@@ -259,6 +449,7 @@ struct ContentView: View {
             statCard(title: "JSON -> CSV", value: usageStats.count(for: .jsonToCSV))
             statCard(title: "Format JSON", value: usageStats.count(for: .formatJSONByLine))
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func statCard(title: String, value: Int) -> some View {
@@ -304,6 +495,7 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(12)
+        .frame(width: 260, alignment: .leading)
         .background(cardBackgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
@@ -326,6 +518,224 @@ struct ContentView: View {
 
     private var primaryTextColor: Color {
         effectiveColorScheme == .dark ? .white : Color(red: 0.10, green: 0.16, blue: 0.24)
+    }
+
+    private func buttonBackgroundColor(highlighted: Bool, pulsing: Bool, accentColor: Color?) -> Color {
+        let activeColor = accentColor ?? brandAccent
+        if pulsing {
+            return activeColor
+        }
+        return highlighted ? activeColor : cardBackgroundColor
+    }
+
+    private func buttonBorderColor(highlighted: Bool, pulsing: Bool, accentColor: Color?) -> Color {
+        let activeColor = accentColor ?? brandAccent
+        if pulsing {
+            return Color.white.opacity(0.9)
+        }
+        return highlighted ? activeColor : activeColor.opacity(0.25)
+    }
+
+    private func editorBorderColor(isOutput: Bool) -> Color {
+        if isOutput && copyResultPulse {
+            return brandAccent
+        }
+        return brandAccent.opacity(0.22)
+    }
+
+    @MainActor
+    private func formatInlineJSON() {
+        let trimmedInput = inlineJSONInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedInput.isEmpty else {
+            inlineJSONOutput = ""
+            suggestedInlineFixInput = nil
+            autoFixPulse = false
+            inlineFormatterMessage = "Paste a JSON payload first, then click Format."
+            inlineFormatterIsError = true
+            statusMessage = inlineFormatterMessage
+            isError = true
+            return
+        }
+
+        do {
+            let sanitized = sanitizeInlineJSONInput(inlineJSONInput)
+            let formatted = try DataTransformService.run(action: .formatJSONByLine, rawText: sanitized)
+            inlineJSONOutput = formatted
+            suggestedInlineFixInput = nil
+            autoFixPulse = false
+            inlineFormatterMessage = formatted == trimmedInput ? "JSON is valid and ready to copy." : "Formatted JSON successfully."
+            inlineFormatterIsError = false
+            statusMessage = inlineFormatterMessage
+            isError = false
+            triggerCopyResultPulse()
+        } catch {
+            inlineJSONOutput = ""
+            suggestedInlineFixInput = suggestedInlineFix(for: inlineJSONInput)
+            if suggestedInlineFixInput != nil {
+                inlineFormatterMessage = "\(error.localizedDescription) Auto-Fix and Format is available."
+                statusMessage = inlineFormatterMessage
+                triggerAutoFixPulse()
+            } else {
+                inlineFormatterMessage = "\(error.localizedDescription) The pasted JSON is invalid and could not be safely auto-fixed."
+                statusMessage = inlineFormatterMessage
+                autoFixPulse = false
+            }
+            inlineFormatterIsError = true
+            isError = true
+        }
+    }
+
+    @MainActor
+    private func copyInlineJSONResult() {
+        guard !inlineJSONOutput.isEmpty else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(inlineJSONOutput, forType: .string)
+        inlineFormatterMessage = "Formatted JSON copied to clipboard."
+        inlineFormatterIsError = false
+        statusMessage = "Formatted JSON copied to clipboard."
+        isError = false
+    }
+
+    @MainActor
+    private func clearInlineFormatter() {
+        inlineJSONInput = ""
+        inlineJSONOutput = ""
+        suggestedInlineFixInput = nil
+        inlineFormatterMessage = "Paste JSON and click Format."
+        inlineFormatterIsError = false
+        copyResultPulse = false
+        autoFixPulse = false
+        statusMessage = "Inline formatter cleared."
+        isError = false
+    }
+
+    @MainActor
+    private func applyInlineFixAndFormat(suggestedInput: String) {
+        inlineJSONInput = suggestedInput
+        formatInlineJSON()
+    }
+
+    private func sanitizeInlineJSONInput(_ input: String) -> String {
+        input.replacingOccurrences(of: "&#34;", with: "\"")
+    }
+
+    private func suggestedInlineFix(for input: String) -> String? {
+        var candidate = sanitizeInlineJSONInput(input).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return nil }
+
+        if !candidate.hasPrefix("{") && !candidate.hasPrefix("[") {
+            return nil
+        }
+
+        candidate = candidate.replacingOccurrences(of: ",}", with: "}")
+        candidate = candidate.replacingOccurrences(of: ",]", with: "]")
+        candidate = insertMissingCommas(in: candidate)
+
+        let openCurly = candidate.filter { $0 == "{" }.count
+        let closeCurly = candidate.filter { $0 == "}" }.count
+        if openCurly > closeCurly {
+            candidate.append(String(repeating: "}", count: openCurly - closeCurly))
+        }
+
+        let openSquare = candidate.filter { $0 == "[" }.count
+        let closeSquare = candidate.filter { $0 == "]" }.count
+        if openSquare > closeSquare {
+            candidate.append(String(repeating: "]", count: openSquare - closeSquare))
+        }
+
+        return candidate == sanitizeInlineJSONInput(input) ? nil : candidate
+    }
+
+    private func insertMissingCommas(in input: String) -> String {
+        let characters = Array(input)
+        var result = ""
+        var inString = false
+        var isEscaping = false
+
+        for character in characters {
+            if inString {
+                result.append(character)
+                if isEscaping {
+                    isEscaping = false
+                } else if character == "\\" {
+                    isEscaping = true
+                } else if character == "\"" {
+                    inString = false
+                }
+                continue
+            }
+
+            if character == "\"" {
+                if shouldInsertComma(before: character, in: result) {
+                    result.append(",")
+                }
+                inString = true
+                result.append(character)
+                continue
+            }
+
+            if !character.isWhitespace && shouldInsertComma(before: character, in: result) {
+                result.append(",")
+            }
+
+            result.append(character)
+        }
+
+        return result
+    }
+
+    private func shouldInsertComma(before character: Character, in result: String) -> Bool {
+        guard let previous = result.last(where: { !$0.isWhitespace }) else { return false }
+        let previousEndsValue = previous == "\"" || previous == "}" || previous == "]" || previous.isNumber || previous == "e" || previous == "E" || previous == "l"
+        let currentStartsValue = character == "\"" || character == "{" || character == "[" || character.isNumber || character == "-" || character == "t" || character == "f" || character == "n"
+        let previousAllowsImplicitComma = previous != ":" && previous != "," && previous != "[" && previous != "{"
+        return previousEndsValue && currentStartsValue && previousAllowsImplicitComma
+    }
+
+    @MainActor
+    private func triggerCopyResultPulse() {
+        copyResultPulse = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            copyResultPulse = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                copyResultPulse = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    copyResultPulse = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+                        copyResultPulse = false
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func triggerAutoFixPulse() {
+        autoFixPulse = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            autoFixPulse = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                autoFixPulse = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+                    autoFixPulse = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        autoFixPulse = false
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func configureWindowIfNeeded() {
+        guard !didConfigureWindow, let window = NSApplication.shared.windows.first else { return }
+        didConfigureWindow = true
+        if let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
+            let targetFrame = visibleFrame.insetBy(dx: 40, dy: 36)
+            window.setFrame(targetFrame, display: true)
+        }
+        window.minSize = NSSize(width: 980, height: 760)
     }
 
     @MainActor

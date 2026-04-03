@@ -3,6 +3,10 @@ import Foundation
 enum DataTransformService {
     static func run(action: TransformAction, inputURL: URL) throws -> String {
         let rawText = try String(contentsOf: inputURL, encoding: .utf8)
+        return try run(action: action, rawText: rawText)
+    }
+
+    static func run(action: TransformAction, rawText: String) throws -> String {
         switch action {
         case .csvToJSON:
             return try convertCSVToJSON(rawText)
