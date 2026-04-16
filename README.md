@@ -4,12 +4,18 @@ A native offline app to:
 - Convert CSV to nicely formatted flat JSON
 - Convert flat JSON to CSV
 - Format flat JSON for readability without changing values into grouped arrays
+- Flatten nested JSON into dot-notated flat JSON
+- Preview and validate transformed output before saving
+- Batch transform multiple files into one output folder
+- Paste CSV/JSON directly into the app and copy the transformed result
 
 ## Why this app helps
 - No online converter is required.
 - No Python, Node.js, or other runtime is required for team members.
 - File data stays local and private.
 - Drag-and-drop input makes repeat file operations faster.
+- Batch mode speeds up multiple-file requests.
+- Validation summaries call out row counts, headers, warnings, and duplicate CSV headers.
 - Built-in usage counters show impact over time for each action.
 
 ## Creator
@@ -77,10 +83,13 @@ To publish an update:
 
 ## Notes on Input Rules
 - CSV -> JSON always outputs a flat JSON array of objects.
+- Flatten JSON accepts nested objects and returns dot-notated flat JSON.
 - JSON -> CSV and JSON formatting accept:
   - a single flat object, or
   - an array of flat objects
 - Nested JSON objects/arrays are rejected with a clear error message.
+- The inline paste transformer supports CSV -> JSON, JSON -> CSV, Format JSON, and Flatten JSON.
+- Preview is available for one selected file at a time. Batch mode writes all selected files to a chosen output folder.
 
 ## Code Signing and Notarization
 Update values for your Apple Developer account and certificate names.
