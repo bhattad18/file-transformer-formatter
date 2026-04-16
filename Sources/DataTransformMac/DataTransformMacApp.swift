@@ -6,5 +6,6 @@ struct FileTransformerAndFormatterApp: App {
         WindowGroup {
             ContentView()
         }
+        .defaultSize(width: 1180, height: 860)
     }
 }

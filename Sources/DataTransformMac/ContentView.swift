@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var isError = false
     @State private var selectedInputURL: URL?
     @State private var lastOutputURL: URL?
+    @State private var isTransformingFile = false
     @State private var isCheckingUpdates = false
     @State private var updateMessage = "Update status not checked yet."
     @State private var latestReleaseURL: URL?
@@ -29,7 +30,6 @@ struct ContentView: View {
     @State private var inlineFormatterIsError = false
     @State private var copyResultPulse = false
     @State private var autoFixPulse = false
-    @State private var didConfigureWindow = false
     @StateObject private var usageStats = UsageStats()
 
     var body: some View {
@@ -41,12 +41,12 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 16) {
+            ScrollView {
                 GeometryReader { geometry in
                     VStack(alignment: .leading, spacing: 16) {
-                    Text("Offline file conversion and formatting. Your files stay local and no online tools are needed.")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(primaryTextColor)
+                        Text("Offline file conversion and formatting. Your files stay local and no online tools are needed.")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(primaryTextColor)
 
                         HStack(alignment: .top, spacing: 12) {
                             appearanceCard
@@ -79,19 +79,16 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(20)
                 }
+                .frame(minHeight: 560)
             }
-            .frame(minWidth: 980, minHeight: 760)
+            .frame(minWidth: 760, minHeight: 560)
             .task {
-                NotificationService.requestPermissionIfNeeded()
                 await checkForUpdates(manual: false)
             }
             .onReceive(updateCheckTimer) { _ in
                 Task {
                     await checkForUpdates(manual: false)
                 }
-            }
-            .onAppear {
-                configureWindowIfNeeded()
             }
         }
         .preferredColorScheme(appearanceMode.colorScheme)
@@ -364,10 +361,10 @@ struct ContentView: View {
 
     private var runButton: some View {
         workflowButton(
-            title: "Run and Save",
+            title: isTransformingFile ? "Working..." : "Run and Save",
             icon: "play.fill",
             highlighted: selectedInputURL != nil && lastOutputURL == nil,
-            enabled: true
+            enabled: !isTransformingFile
         ) {
             runSelectedAction()
         }
@@ -558,7 +555,7 @@ struct ContentView: View {
         }
 
         do {
-            let sanitized = sanitizeInlineJSONInput(inlineJSONInput)
+            let sanitized = JSONRepairService.sanitize(inlineJSONInput)
             let formatted = try DataTransformService.run(action: .formatJSONByLine, rawText: sanitized)
             inlineJSONOutput = formatted
             suggestedInlineFixInput = nil
@@ -570,7 +567,7 @@ struct ContentView: View {
             triggerCopyResultPulse()
         } catch {
             inlineJSONOutput = ""
-            suggestedInlineFixInput = suggestedInlineFix(for: inlineJSONInput)
+            suggestedInlineFixInput = JSONRepairService.suggestedFix(for: inlineJSONInput)
             if suggestedInlineFixInput != nil {
                 inlineFormatterMessage = "\(error.localizedDescription) Auto-Fix and Format is available."
                 statusMessage = inlineFormatterMessage
@@ -616,83 +613,6 @@ struct ContentView: View {
         formatInlineJSON()
     }
 
-    private func sanitizeInlineJSONInput(_ input: String) -> String {
-        input.replacingOccurrences(of: "&#34;", with: "\"")
-    }
-
-    private func suggestedInlineFix(for input: String) -> String? {
-        var candidate = sanitizeInlineJSONInput(input).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !candidate.isEmpty else { return nil }
-
-        if !candidate.hasPrefix("{") && !candidate.hasPrefix("[") {
-            return nil
-        }
-
-        candidate = candidate.replacingOccurrences(of: ",}", with: "}")
-        candidate = candidate.replacingOccurrences(of: ",]", with: "]")
-        candidate = insertMissingCommas(in: candidate)
-
-        let openCurly = candidate.filter { $0 == "{" }.count
-        let closeCurly = candidate.filter { $0 == "}" }.count
-        if openCurly > closeCurly {
-            candidate.append(String(repeating: "}", count: openCurly - closeCurly))
-        }
-
-        let openSquare = candidate.filter { $0 == "[" }.count
-        let closeSquare = candidate.filter { $0 == "]" }.count
-        if openSquare > closeSquare {
-            candidate.append(String(repeating: "]", count: openSquare - closeSquare))
-        }
-
-        return candidate == sanitizeInlineJSONInput(input) ? nil : candidate
-    }
-
-    private func insertMissingCommas(in input: String) -> String {
-        let characters = Array(input)
-        var result = ""
-        var inString = false
-        var isEscaping = false
-
-        for character in characters {
-            if inString {
-                result.append(character)
-                if isEscaping {
-                    isEscaping = false
-                } else if character == "\\" {
-                    isEscaping = true
-                } else if character == "\"" {
-                    inString = false
-                }
-                continue
-            }
-
-            if character == "\"" {
-                if shouldInsertComma(before: character, in: result) {
-                    result.append(",")
-                }
-                inString = true
-                result.append(character)
-                continue
-            }
-
-            if !character.isWhitespace && shouldInsertComma(before: character, in: result) {
-                result.append(",")
-            }
-
-            result.append(character)
-        }
-
-        return result
-    }
-
-    private func shouldInsertComma(before character: Character, in result: String) -> Bool {
-        guard let previous = result.last(where: { !$0.isWhitespace }) else { return false }
-        let previousEndsValue = previous == "\"" || previous == "}" || previous == "]" || previous.isNumber || previous == "e" || previous == "E" || previous == "l"
-        let currentStartsValue = character == "\"" || character == "{" || character == "[" || character.isNumber || character == "-" || character == "t" || character == "f" || character == "n"
-        let previousAllowsImplicitComma = previous != ":" && previous != "," && previous != "[" && previous != "{"
-        return previousEndsValue && currentStartsValue && previousAllowsImplicitComma
-    }
-
     @MainActor
     private func triggerCopyResultPulse() {
         copyResultPulse = false
@@ -725,17 +645,6 @@ struct ContentView: View {
                 }
             }
         }
-    }
-
-    @MainActor
-    private func configureWindowIfNeeded() {
-        guard !didConfigureWindow, let window = NSApplication.shared.windows.first else { return }
-        didConfigureWindow = true
-        if let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
-            let targetFrame = visibleFrame.insetBy(dx: 40, dy: 36)
-            window.setFrame(targetFrame, display: true)
-        }
-        window.minSize = NSSize(width: 980, height: 760)
     }
 
     @MainActor
@@ -781,18 +690,52 @@ struct ContentView: View {
 
     @MainActor
     private func runSelectedAction() {
+        guard !isTransformingFile else { return }
+
         do {
             let inputURL = try resolveInputFile()
-            let output = try DataTransformService.run(action: selectedAction, inputURL: inputURL)
-            let outputURL = try FilePanel.pickSaveLocation(
-                suggestedName: selectedAction.suggestedOutputFileName(from: inputURL),
-                allowedExtension: selectedAction.outputExtension
-            )
-            try output.write(to: outputURL, atomically: true, encoding: .utf8)
-            usageStats.increment(action: selectedAction)
-            lastOutputURL = outputURL
-            statusMessage = "Done. Output saved to:\n\(outputURL.path)"
+            let action = selectedAction
+            isTransformingFile = true
+            statusMessage = "Working on \(inputURL.lastPathComponent)..."
             isError = false
+
+            Task {
+                do {
+                    let output = try await Task.detached(priority: .userInitiated) {
+                        try DataTransformService.run(action: action, inputURL: inputURL)
+                    }.value
+
+                    let outputURL = try await MainActor.run {
+                        try FilePanel.pickSaveLocation(
+                            suggestedName: action.suggestedOutputFileName(from: inputURL),
+                            allowedExtension: action.outputExtension
+                        )
+                    }
+
+                    try await Task.detached(priority: .userInitiated) {
+                        try output.write(to: outputURL, atomically: true, encoding: .utf8)
+                    }.value
+
+                    await MainActor.run {
+                        usageStats.increment(action: action)
+                        lastOutputURL = outputURL
+                        statusMessage = "Done. Output saved to:\n\(outputURL.path)"
+                        isError = false
+                        isTransformingFile = false
+                    }
+                } catch {
+                    await MainActor.run {
+                        if (error as NSError).code == NSUserCancelledError {
+                            statusMessage = "Operation canceled."
+                            isError = false
+                        } else {
+                            statusMessage = error.localizedDescription
+                            isError = true
+                        }
+                        isTransformingFile = false
+                    }
+                }
+            }
         } catch {
             if (error as NSError).code == NSUserCancelledError {
                 statusMessage = "Operation canceled."

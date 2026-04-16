@@ -17,9 +17,10 @@ A native offline app to:
 - Email: rohit.bhattad@outlook.com
 
 ## Privacy and Offline Behavior
-- No network calls are used.
-- All parsing and conversion happen locally.
-- Input/output files remain on disk selected by the user.
+- File parsing, conversion, formatting, and saved output all happen locally.
+- Input/output file contents stay on the user's device and are not uploaded by the app.
+- Update checks contact GitHub only when the app checks for updates.
+- Feedback buttons may open email, Gmail, or Outlook Web using the user's selected mail/browser flow.
 
 ## Requirements (for building)
 - macOS 13+
@@ -51,7 +52,7 @@ zip -r "File Transformer and Formatter.zip" "File Transformer and Formatter.app"
 
 ## Feedback and Bugs
 - The app includes a `Share Feedback / Bug` button.
-- Clicking it opens the user's default mail app with a prefilled email to `rohit.bhattad@outlook.com`.
+- Users can open their default mail app, Gmail, or Outlook Web with a prefilled message to `rohit.bhattad@outlook.com`.
 
 ## Update Checks (GitHub)
 - The app includes a `Check for Updates` button.

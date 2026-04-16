@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_EXECUTABLE="DataTransformMac"
 APP_DISPLAY_NAME="File Transformer and Formatter"
 APP_BUNDLE_ID="com.rohitbhattad.filetransformerformatter"
+APP_VERSION="${APP_VERSION:-$(awk -F'"' '/currentVersion/ { print $2; exit }' "$ROOT_DIR/Sources/DataTransformMac/AppInfo.swift")}"
+APP_BUILD="${APP_BUILD:-1}"
 BUILD_DIR="$ROOT_DIR/.build/release"
 APP_DIR="$ROOT_DIR/dist/${APP_DISPLAY_NAME}.app"
 MACOS_DIR="$APP_DIR/Contents/MacOS"
@@ -37,9 +39,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key>
   <string>$APP_BUNDLE_ID</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$APP_BUILD</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0.0</string>
+  <string>$APP_VERSION</string>
   <key>CFBundleExecutable</key>
   <string>$APP_EXECUTABLE</string>
   <key>CFBundlePackageType</key>

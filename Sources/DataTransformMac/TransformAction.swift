@@ -1,6 +1,6 @@
 import Foundation
 
-enum TransformAction: String, CaseIterable, Identifiable {
+enum TransformAction: String, CaseIterable, Identifiable, Sendable {
     case csvToJSON
     case jsonToCSV
     case formatJSONByLine
