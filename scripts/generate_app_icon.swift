@@ -16,111 +16,69 @@ let baseImage = NSImage(size: baseSize)
 baseImage.lockFocus()
 
 let canvasRect = NSRect(origin: .zero, size: baseSize)
-let roundedRect = NSBezierPath(roundedRect: canvasRect, xRadius: 220, yRadius: 220)
+NSColor.clear.setFill()
+canvasRect.fill()
 
-let gradient = NSGradient(
-    colors: [
-        NSColor(calibratedRed: 0.07, green: 0.14, blue: 0.30, alpha: 1.0),
-        NSColor(calibratedRed: 0.05, green: 0.30, blue: 0.45, alpha: 1.0)
-    ]
-)!
-gradient.draw(in: roundedRect, angle: -35)
+let shieldPath = NSBezierPath()
+shieldPath.move(to: NSPoint(x: 512, y: 942))
+shieldPath.curve(
+    to: NSPoint(x: 874, y: 790),
+    controlPoint1: NSPoint(x: 630, y: 866),
+    controlPoint2: NSPoint(x: 730, y: 818)
+)
+shieldPath.line(to: NSPoint(x: 874, y: 412))
+shieldPath.curve(
+    to: NSPoint(x: 512, y: 58),
+    controlPoint1: NSPoint(x: 874, y: 226),
+    controlPoint2: NSPoint(x: 684, y: 126)
+)
+shieldPath.curve(
+    to: NSPoint(x: 150, y: 412),
+    controlPoint1: NSPoint(x: 340, y: 126),
+    controlPoint2: NSPoint(x: 150, y: 226)
+)
+shieldPath.line(to: NSPoint(x: 150, y: 790))
+shieldPath.curve(
+    to: NSPoint(x: 512, y: 942),
+    controlPoint1: NSPoint(x: 294, y: 818),
+    controlPoint2: NSPoint(x: 394, y: 866)
+)
+shieldPath.close()
 
-NSColor.white.withAlphaComponent(0.1).setFill()
-let glow = NSBezierPath(ovalIn: NSRect(x: 150, y: 600, width: 720, height: 260))
-glow.fill()
+NSGraphicsContext.current?.saveGraphicsState()
+let shadow = NSShadow()
+shadow.shadowColor = NSColor(calibratedRed: 0.02, green: 0.18, blue: 0.42, alpha: 0.28)
+shadow.shadowOffset = NSSize(width: 0, height: -18)
+shadow.shadowBlurRadius = 30
+shadow.set()
+let shieldGradient = NSGradient(colors: [
+    NSColor(calibratedRed: 0.00, green: 0.78, blue: 0.82, alpha: 1.0),
+    NSColor(calibratedRed: 0.09, green: 0.34, blue: 0.92, alpha: 1.0)
+])!
+shieldGradient.draw(in: shieldPath, angle: 0)
+NSGraphicsContext.current?.restoreGraphicsState()
 
-let cardRect = NSRect(x: 228, y: 190, width: 568, height: 650)
-let card = NSBezierPath(roundedRect: cardRect, xRadius: 70, yRadius: 70)
-NSColor.white.withAlphaComponent(0.18).setFill()
-card.fill()
-NSColor.white.withAlphaComponent(0.52).setStroke()
-card.lineWidth = 8
-card.stroke()
+NSGraphicsContext.current?.saveGraphicsState()
+shieldPath.addClip()
+NSColor(calibratedWhite: 1.0, alpha: 0.12).setFill()
+NSBezierPath(rect: NSRect(x: 512, y: 40, width: 380, height: 920)).fill()
+NSColor(calibratedRed: 0.0, green: 0.30, blue: 0.55, alpha: 0.13).setFill()
+NSBezierPath(rect: NSRect(x: 140, y: 40, width: 372, height: 920)).fill()
+NSGraphicsContext.current?.restoreGraphicsState()
 
-let contentRect = cardRect.insetBy(dx: 70, dy: 110)
-let splitX = contentRect.midX
-
-let grid = NSBezierPath()
-grid.lineWidth = 12
-grid.lineCapStyle = .round
-NSColor(calibratedRed: 0.50, green: 0.89, blue: 1.0, alpha: 1.0).setStroke()
-
-for row in 0...4 {
-    let y = contentRect.minY + CGFloat(row) * (contentRect.height / 4.0)
-    grid.move(to: NSPoint(x: contentRect.minX, y: y))
-    grid.line(to: NSPoint(x: splitX - 42, y: y))
-}
-for col in 0...2 {
-    let x = contentRect.minX + CGFloat(col) * ((splitX - 42 - contentRect.minX) / 2.0)
-    grid.move(to: NSPoint(x: x, y: contentRect.minY))
-    grid.line(to: NSPoint(x: x, y: contentRect.maxY))
-}
-grid.stroke()
-
-let braces = NSBezierPath()
-braces.lineWidth = 18
-braces.lineCapStyle = .round
-NSColor(calibratedRed: 1.0, green: 0.81, blue: 0.34, alpha: 1.0).setStroke()
-
-let braceTop = contentRect.maxY
-let braceMid = contentRect.midY
-let braceBot = contentRect.minY
-let leftBraceX = splitX + 48
-let rightBraceX = contentRect.maxX
-let notch: CGFloat = 32
-
-braces.move(to: NSPoint(x: leftBraceX + notch, y: braceTop))
-braces.curve(to: NSPoint(x: leftBraceX, y: braceMid + 35),
-             controlPoint1: NSPoint(x: leftBraceX, y: braceTop),
-             controlPoint2: NSPoint(x: leftBraceX, y: braceMid + 80))
-braces.curve(to: NSPoint(x: leftBraceX + notch, y: braceMid),
-             controlPoint1: NSPoint(x: leftBraceX, y: braceMid + 5),
-             controlPoint2: NSPoint(x: leftBraceX + notch, y: braceMid + 5))
-braces.curve(to: NSPoint(x: leftBraceX, y: braceMid - 35),
-             controlPoint1: NSPoint(x: leftBraceX + notch, y: braceMid - 5),
-             controlPoint2: NSPoint(x: leftBraceX, y: braceMid - 5))
-braces.curve(to: NSPoint(x: leftBraceX + notch, y: braceBot),
-             controlPoint1: NSPoint(x: leftBraceX, y: braceMid - 80),
-             controlPoint2: NSPoint(x: leftBraceX, y: braceBot))
-
-braces.move(to: NSPoint(x: rightBraceX - notch, y: braceTop))
-braces.curve(to: NSPoint(x: rightBraceX, y: braceMid + 35),
-             controlPoint1: NSPoint(x: rightBraceX, y: braceTop),
-             controlPoint2: NSPoint(x: rightBraceX, y: braceMid + 80))
-braces.curve(to: NSPoint(x: rightBraceX - notch, y: braceMid),
-             controlPoint1: NSPoint(x: rightBraceX, y: braceMid + 5),
-             controlPoint2: NSPoint(x: rightBraceX - notch, y: braceMid + 5))
-braces.curve(to: NSPoint(x: rightBraceX, y: braceMid - 35),
-             controlPoint1: NSPoint(x: rightBraceX - notch, y: braceMid - 5),
-             controlPoint2: NSPoint(x: rightBraceX, y: braceMid - 5))
-braces.curve(to: NSPoint(x: rightBraceX - notch, y: braceBot),
-             controlPoint1: NSPoint(x: rightBraceX, y: braceMid - 80),
-             controlPoint2: NSPoint(x: rightBraceX, y: braceBot))
-braces.stroke()
-
-let swapBadge = NSBezierPath(ovalIn: NSRect(x: 452, y: 470, width: 120, height: 120))
-NSColor(calibratedRed: 0.02, green: 0.11, blue: 0.24, alpha: 0.92).setFill()
-swapBadge.fill()
-
-let swap = NSBezierPath()
-swap.lineWidth = 12
-swap.lineCapStyle = .round
+let checkPath = NSBezierPath()
+checkPath.lineWidth = 72
+checkPath.lineCapStyle = .round
+checkPath.lineJoinStyle = .round
 NSColor.white.setStroke()
-swap.move(to: NSPoint(x: 482, y: 530))
-swap.line(to: NSPoint(x: 542, y: 530))
-swap.move(to: NSPoint(x: 542, y: 530))
-swap.line(to: NSPoint(x: 528, y: 544))
-swap.move(to: NSPoint(x: 542, y: 530))
-swap.line(to: NSPoint(x: 528, y: 516))
+checkPath.move(to: NSPoint(x: 344, y: 532))
+checkPath.line(to: NSPoint(x: 476, y: 398))
+checkPath.line(to: NSPoint(x: 704, y: 674))
+checkPath.stroke()
 
-swap.move(to: NSPoint(x: 542, y: 506))
-swap.line(to: NSPoint(x: 482, y: 506))
-swap.move(to: NSPoint(x: 482, y: 506))
-swap.line(to: NSPoint(x: 496, y: 520))
-swap.move(to: NSPoint(x: 482, y: 506))
-swap.line(to: NSPoint(x: 496, y: 492))
-swap.stroke()
+NSColor.white.withAlphaComponent(0.24).setStroke()
+shieldPath.lineWidth = 5
+shieldPath.stroke()
 
 baseImage.unlockFocus()
 

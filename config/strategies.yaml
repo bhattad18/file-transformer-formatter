@@ -1,0 +1,20 @@
+defaults:
+  EMAIL: mask
+  PHONE: mask
+  PHONE_GCC: mask
+  PRIVATE_URL: redact
+  PRIVATE_DATE: redact
+  PRIVATE_ADDRESS: redact
+  ACCOUNT_NUMBER: redact
+  SECRET: redact
+  NATIONAL_ID_AADHAAR: redact
+  NATIONAL_ID_UAE: redact
+  NATIONAL_ID_SAUDI: redact
+  RESIDENCY_ID_SAUDI_IQAMA: redact
+  BANK_ACCOUNT_IBAN_GCC: redact
+  PASSPORT_GCC: redact
+  PAYMENT_CARD: redact
+  PERSON_NAME: replace
+hashing:
+  salt_source: per_run
+  log_raw_values: false

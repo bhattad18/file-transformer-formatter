@@ -1,10 +1,8 @@
 import Foundation
 
 enum AppInfo {
-    static let appName = "File Transformer and Formatter"
-    static let currentVersion = "1.0.2"
+    static let appName = "Offline PII Sanitizer"
+    static let currentVersion = "0.1.0"
     static let creatorName = "Rohit Bhattad"
-    static let creatorEmail = "rohit.bhattad@outlook.com"
-    static let updatesRepoOwner = "bhattad18"
-    static let updatesRepoName = "file-transformer-formatter"
+    static let creatorEmail = "Rohit.Bhattad@outlook.com"
 }

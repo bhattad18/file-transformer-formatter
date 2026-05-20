@@ -1,127 +1,108 @@
-# File Transformer and Formatter
+# Offline PII Sanitizer
 
-A native offline app to:
-- Convert CSV to nicely formatted flat JSON
-- Convert flat JSON to CSV
-- Format flat JSON for readability without changing values into grouped arrays
-- Flatten nested JSON into dot-notated flat JSON
-- Preview and validate transformed output before saving
-- Batch transform multiple files into one output folder
-- Paste CSV/JSON directly into the app and copy the transformed result
+A fully offline macOS menu bar app and Python sanitizer engine for CSV, Excel, and PowerPoint files.
 
-## Why this app helps
-- No online converter is required.
-- No Python, Node.js, or other runtime is required for team members.
-- File data stays local and private.
-- Drag-and-drop input makes repeat file operations faster.
-- Batch mode speeds up multiple-file requests.
-- Validation summaries call out row counts, headers, warnings, and duplicate CSV headers.
-- Built-in usage counters show impact over time for each action.
+## What It Does
 
-## Creator
-- Name: Rohit Bhattad
-- Email: rohit.bhattad@outlook.com
+- Sanitizes `.csv`, `.xlsx`, and `.pptx` files.
+- Writes new `.sanitized` files and never overwrites originals.
+- Creates structured JSON logs for every run.
+- Runs locally with no update checks, telemetry, analytics, remote logging, or network calls.
+- Detects PII using a lightweight header + regex pipeline inspired by Presidio-style modular detectors and scrubadub-style simple cleaning patterns.
 
-## Privacy and Offline Behavior
-- File parsing, conversion, formatting, and saved output all happen locally.
-- Input/output file contents stay on the user's device and are not uploaded by the app.
-- Update checks contact GitHub only when the app checks for updates.
-- Feedback buttons may open email, Gmail, or Outlook Web using the user's selected mail/browser flow.
+## Project Structure
 
-## Requirements (for building)
-- macOS 13+
-- Xcode Command Line Tools (Swift)
+```text
+pii_sanitizer/
+  core/
+    detectors/      Header and regex detectors.
+    sanitizers/     Redact, mask, hash, and replacement strategies.
+    processors/     CSV, Excel, and PowerPoint processors.
+    pipeline.py     Detection, sanitization, output, and log orchestration.
+    models.py       Shared run, detection, and report models.
+    registry.py     Built-in detector rule registration.
+  cli/
+    main.py         Local command line entrypoint.
+config/             Rule, strategy, and runtime defaults.
+logs/               Placeholder for local JSON logs.
+Sources/            Native SwiftUI macOS menu bar app.
+```
 
-## Run Locally
+## Data Flow
+
+1. Select files from the macOS menu bar app or pass files to the CLI.
+2. The processor extracts editable text from CSV rows or Office XML parts.
+3. Header and regex detectors identify likely PII.
+4. Sanitizers redact, mask, hash, or replace detected values.
+5. The app writes new sanitized files.
+6. The pipeline writes a JSON log without raw PII values.
+
+## CLI
+
 ```bash
-swift run
+python3 -m pii_sanitizer sanitize ./input.csv --output-dir ./sanitized --log-dir ./logs --json
+```
+
+Batch sanitize every supported file in a folder:
+
+```bash
+python3 -m pii_sanitizer sanitize ./client_documents --log-dir ./logs
+```
+
+Folder input creates `./client_documents/Sanitized_Output` by default and keeps original filenames inside that output folder. Terminal output shows progress such as `[1/12] Sanitizing customers.xlsx`.
+
+Every run writes a JSON audit log with timestamp, processed files, output files, redaction counts by PII type, skipped files, and errors.
+
+## Verification Suite
+
+Generate synthetic CSV, Excel, and PowerPoint files, run the sanitizer, and produce a pass/fail verification report:
+
+```bash
+python3 -B scripts/verification_suite.py
+```
+
+The suite writes fixtures, sanitized outputs, JSON audit logs, and `Verification_Report.md` under `verification_artifacts/`.
+
+## Add Rules
+
+Add a new detector rule in `config/rules.yaml`, then mirror it in `pii_sanitizer/core/registry.py` if it should ship as a built-in default.
+
+Built-in regional coverage currently includes:
+
+- Saudi National ID numbers.
+- Saudi Iqama/residency numbers.
+- GCC mobile numbers using Saudi, UAE, Bahrain, Qatar, Kuwait, and Oman country codes.
+- GCC IBAN formats for Saudi Arabia, UAE, Bahrain, Kuwait, Qatar, and Oman.
+- UAE Emirates ID.
+- GCC passport-like values when supported by a passport header.
+- English and Arabic header aliases for common Saudi/GCC fields.
+- Survey and organization hierarchy name fields such as manager, mgr, mngr, director, supervisor, executive, VP, team lead, department head, regional manager, and common abbreviated variants.
+
+Example:
+
+```yaml
+- id: uae_id
+  entity_type: NATIONAL_ID_UAE
+  headers: [uae_id, emirates_id, eid]
+  regex: "\\b784[-\\s]?[0-9]{4}[-\\s]?[0-9]{7}[-\\s]?[0-9]\\b"
+  strategy: redact
+  min_confidence: 0.80
 ```
 
 ## Build
+
 ```bash
-swift build -c release
+swift build
 ```
 
-## Create a Shareable `.app`
+## Package a macOS App
+
 ```bash
 ./scripts/package_app.sh
 ```
 
-This creates:
-- `dist/File Transformer and Formatter.app`
+The packaging script bundles the Swift executable, app icon, Python sanitizer package, and config files into:
 
-Optional zip for sharing:
-```bash
-cd dist
-zip -r "File Transformer and Formatter.zip" "File Transformer and Formatter.app"
-```
-
-## Feedback and Bugs
-- The app includes a `Share Feedback / Bug` button.
-- Users can open their default mail app, Gmail, or Outlook Web with a prefilled message to `rohit.bhattad@outlook.com`.
-
-## Update Checks (GitHub)
-- The app includes a `Check for Updates` button.
-- It checks this GitHub repo for latest release:
-  - `https://github.com/bhattad18/file-transformer-formatter`
-- It compares the current app version vs GitHub `releases/latest`.
-- If a newer version is available, users get:
-  - an in-app update message
-  - a `Download Latest Version` button
-  - a local macOS notification (once per new version while app is in use)
-
-To publish an update:
-1. Build and zip the new app.
-2. Create a GitHub Release with a tag like `v1.0.1`.
-3. Upload the zip/app as a release asset.
-4. Users click `Check for Updates` (or wait for periodic check while app is open).
-
-## Sharing With Colleagues
-- Yes, you can share `File Transformer and Formatter.app`.
-- For easiest delivery over chat/email, share the zip:
-  - `File Transformer and Formatter.zip`
-
-## Notes on Input Rules
-- CSV -> JSON always outputs a flat JSON array of objects.
-- Flatten JSON accepts nested objects and returns dot-notated flat JSON.
-- JSON -> CSV and JSON formatting accept:
-  - a single flat object, or
-  - an array of flat objects
-- Nested JSON objects/arrays are rejected with a clear error message.
-- The inline paste transformer supports CSV -> JSON, JSON -> CSV, Format JSON, and Flatten JSON.
-- Preview is available for one selected file at a time. Batch mode writes all selected files to a chosen output folder.
-
-## Code Signing and Notarization
-Update values for your Apple Developer account and certificate names.
-
-1. Create an archive zip for the app:
-```bash
-cd dist
-zip -r "File Transformer and Formatter.zip" "File Transformer and Formatter.app"
-```
-
-2. Sign the app with Developer ID Application certificate:
-```bash
-codesign --deep --force --verify --verbose \
-  --sign "Developer ID Application: YOUR_NAME (TEAM_ID)" \
-  "File Transformer and Formatter.app"
-```
-
-3. Notarize with notarytool:
-```bash
-xcrun notarytool submit "File Transformer and Formatter.zip" \
-  --apple-id "YOUR_APPLE_ID" \
-  --team-id "YOUR_TEAM_ID" \
-  --password "YOUR_APP_SPECIFIC_PASSWORD" \
-  --wait
-```
-
-4. Staple notarization ticket:
-```bash
-xcrun stapler staple "File Transformer and Formatter.app"
-```
-
-5. Validate Gatekeeper:
-```bash
-spctl --assess --type execute --verbose "File Transformer and Formatter.app"
+```text
+dist/Offline PII Sanitizer.app
 ```

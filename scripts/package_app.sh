@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_EXECUTABLE="DataTransformMac"
-APP_DISPLAY_NAME="File Transformer and Formatter"
-APP_BUNDLE_ID="com.rohitbhattad.filetransformerformatter"
+APP_DISPLAY_NAME="Offline PII Sanitizer"
+APP_BUNDLE_ID="com.rohitbhattad.offlinepiisanitizer"
 APP_VERSION="${APP_VERSION:-$(awk -F'"' '/currentVersion/ { print $2; exit }' "$ROOT_DIR/Sources/DataTransformMac/AppInfo.swift")}"
 APP_BUILD="${APP_BUILD:-1}"
 BUILD_DIR="$ROOT_DIR/.build/release"
@@ -26,6 +26,8 @@ mkdir -p "$RESOURCES_DIR"
 
 cp "$BUILD_DIR/$APP_EXECUTABLE" "$MACOS_DIR/$APP_EXECUTABLE"
 cp "$ICON_PATH" "$RESOURCES_DIR/AppIcon.icns"
+cp -R "$ROOT_DIR/pii_sanitizer" "$RESOURCES_DIR/pii_sanitizer"
+cp -R "$ROOT_DIR/config" "$RESOURCES_DIR/config"
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

@@ -2,10 +2,19 @@ import SwiftUI
 
 @main
 struct FileTransformerAndFormatterApp: App {
+    @StateObject private var model = PIISanitizerMenuModel()
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        WindowGroup("Offline PII Sanitizer", id: "main") {
+            PIISanitizerAppView(model: model)
         }
-        .defaultSize(width: 1180, height: 860)
+        .defaultSize(width: 920, height: 680)
+
+        MenuBarExtra {
+            PIISanitizerMenuView(model: model)
+        } label: {
+            Label("PII Sanitizer", systemImage: "shield.lefthalf.filled")
+        }
+        .menuBarExtraStyle(.menu)
     }
 }

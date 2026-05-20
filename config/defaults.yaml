@@ -1,0 +1,5 @@
+offline_mode: true
+overwrite_originals: false
+supported_extensions: [.csv, .xlsx, .pptx]
+min_confidence: 0.70
+log_raw_pii: false
